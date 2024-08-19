@@ -19,18 +19,8 @@ const Home: React.FC = () => {
   const [answeredQuestions, setAnsweredQuestions] = useState<number>(0);
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
   const [showSummary, setShowSummary] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (data.length > 0) {
-      const keys = data.map(row => row[0]); // Include the first row as valid data
-      setTotalQuestions(keys.length);
-      setAvailableKeys(keys);
-      if (keys.length > 0) {
-        const randomIndex = Math.floor(Math.random() * keys.length);
-        setRandomKey(keys[randomIndex]);
-      }
-    }
-  }, [data]);
+  const [limit, setLimit] = useState<number>(3); // New state for limit
+  const [entryLimit, setEntryLimit] = useState<number>(10);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,8 +31,6 @@ const Home: React.FC = () => {
       const data = new Uint8Array(e.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      
-      // Parse the sheet without excluding the header row
       const jsonData: string[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
   
       // Reset quiz state
@@ -58,17 +46,39 @@ const Home: React.FC = () => {
       // Initialize new quiz with all rows considered as data
       const secondColumnValues = jsonData.map(row => row[1]); // Include all rows
       const uniqueSet = new Set(secondColumnValues);
-      setUniqueValues(Array.from(uniqueSet));
+      const limitedUniqueValues = Array.from(uniqueSet).slice(0, limit); // Apply the limit
+      setUniqueValues(limitedUniqueValues);
   
-      const keys = jsonData.map(row => row[0]); // Include all rows
-      setTotalQuestions(keys.length);
-      setAvailableKeys(keys);
-      if (keys.length > 0) {
-        const randomIndex = Math.floor(Math.random() * keys.length);
-        setRandomKey(keys[randomIndex]);
+      // Filter keys based on limited unique values
+      const filteredKeys = jsonData
+        .filter(row => limitedUniqueValues.includes(row[1]))
+        .map(row => row[0])
+        .slice(0, entryLimit);
+
+      setTotalQuestions(filteredKeys.length);
+      setAvailableKeys(filteredKeys);
+  
+      // Select a random key from the filtered keys
+      if (filteredKeys.length > 0) {
+        const randomIndex = Math.floor(Math.random() * filteredKeys.length);
+        setRandomKey(filteredKeys[randomIndex]);
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const handleLimitChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value, 10);
+    if (!isNaN(value) && value > 0) {
+      setLimit(value);
+    }
+  };
+
+  const handleEntryLimitChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value, 10);
+    if (!isNaN(value) && value > 0) {
+      setEntryLimit(value);
+    }
   };
 
   const handleSubmit = () => {
@@ -166,6 +176,33 @@ const Home: React.FC = () => {
 
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div style={{ marginTop: '20px' }}>
+        <label>
+          Set Limit of Categories: 
+          <input 
+            type="number" 
+            value={limit} 
+            onChange={handleLimitChange} 
+            style={{ marginLeft: '10px', fontSize: '16px', padding: '4px' }} 
+            min="1"
+          />
+        </label>
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <label>
+          Set Limit of Questions: 
+          <input 
+            type="number" 
+            value={entryLimit} 
+            onChange={handleEntryLimitChange} 
+            style={{ marginLeft: '10px', fontSize: '16px', padding: '4px' }}
+            className="border border-gray-300 rounded-lg shadow-sm p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+            min="1"
+          />
+        </label>
+      </div>
+
       <h1>Upload an Excel File</h1>
       <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} />
 
@@ -191,13 +228,28 @@ const Home: React.FC = () => {
           {randomKey && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '30px' }}>
               <strong>{randomKey}</strong>
-              <select id="dropdown">
-                {uniqueValues.map((value, index) => (
-                  <option key={index} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
+              <select
+  id="dropdown"
+  size={uniqueValues.length} // This will make all options visible in a box
+  style={{
+    fontSize: '16px',
+    padding: '10px',
+    border: '1px solid #ccc',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+    outline: 'none',
+    width: 'auto', // Change 'auto' to a specific value if needed
+    maxWidth: '300px', // You can adjust this to limit the width
+    overflowY: 'auto', // Adds a scroll if there are too many items
+    whiteSpace: 'nowrap', // Prevents text wrapping to keep the width smaller
+  }}
+>
+  {uniqueValues.map((value, index) => (
+    <option key={index} value={value}>
+      {value}
+    </option>
+  ))}
+</select>
               <button
   onClick={handleSubmit}
   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
